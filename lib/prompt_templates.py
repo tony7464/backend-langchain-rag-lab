@@ -11,12 +11,29 @@ procedures, metrics, or incident steps.
 Keep the response concise, specific, and useful to an engineer during an incident.
 """
 
+# The human message carries the per-request data. {context} and {question} are
+# template variables that LangChain fills in when the chain is invoked.
+HUMAN_PROMPT = """
+Approved runbook context:
+{context}
+
+Engineer question:
+{question}
+
+Answer only from the approved context above. If the context does not support
+an answer, say so instead of guessing. Do not add unsupported claims.
+"""
+
 
 def build_rag_prompt():
     """Build the reusable LangChain prompt template for RAG answers."""
 
-    # TODO: Import ChatPromptTemplate from langchain_core.prompts.
-    # TODO: Return a ChatPromptTemplate with:
-    # - a system message containing SYSTEM_PROMPT
-    # - a human message that includes both {context} and {question}
-    raise NotImplementedError("Build and return a ChatPromptTemplate.")
+    # Imported here so the module loads even before dependencies are installed.
+    from langchain_core.prompts import ChatPromptTemplate
+
+    return ChatPromptTemplate.from_messages(
+        [
+            ("system", SYSTEM_PROMPT),
+            ("human", HUMAN_PROMPT),
+        ]
+    )
