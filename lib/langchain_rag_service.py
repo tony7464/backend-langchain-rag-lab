@@ -56,7 +56,7 @@ def format_context(scored_documents):
 
     blocks = []
     for index, (document, distance) in enumerate(scored_documents, start=1):
-        metadata = document.metadata or {}
+        metadata = (document.metadata or {})
 
         # Labeling each chunk with its metadata lets the model (and a human
         # debugging the prompt) see exactly which runbook each fact came from.
@@ -70,7 +70,7 @@ def format_context(scored_documents):
                     f"Section: {metadata.get('section', 'Unspecified')}",
                     f"Chunk ID: {metadata.get('chunk_id', 'unknown')}",
                     f"Distance: {float(distance):.4f}",
-                    f"Text: {document.page_content.strip()}",
+                    f"Text: {(document.page_content or '').strip()}",
                 ]
             )
         )
@@ -95,6 +95,14 @@ def answer_question(
             cleaned_question, vector_store=vector_store, top_k=top_k
         )
 
+        # Blank chunks must never be cited or sent to the model.
+        usable_documents = [
+            (doc, distance)
+            for doc, distance in scored_documents
+            if isinstance(getattr(doc, "page_content", None), str)
+            and doc.page_content.strip()
+        ]
+
         # 2. Fallback: with no usable context, never call the model. Returning a
         #    fixed safe answer is how we avoid hallucinated incident steps.
         if not has_usable_context(scored_documents):
@@ -104,7 +112,7 @@ def answer_question(
             return format_fallback_response(debug)
 
         # 3. Build the context string that fills {context} in the prompt.
-        context = format_context(scored_documents)
+        context = format_context(usable_documents)
 
         # 4. Generate: use the injected chain (tests) or build the real one.
         if chain is None:
@@ -116,9 +124,9 @@ def answer_question(
             raise LangChainServiceError("The model returned an empty answer.")
 
         # 6. Attach sources and debug metadata so the answer is inspectable.
-        sources = format_sources(scored_documents)
+        sources = format_sources(usable_documents)
         debug = format_langchain_debug(
-            scored_documents, context=context, top_k=top_k, fallback=False
+            usable_documents, context=context, top_k=top_k, fallback=False
         )
         return format_success_response(answer, sources, debug)
 
